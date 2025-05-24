@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>ai 문서 탐색기</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f2f5; }
+    .header { background: #4a90e2; color: #fff; padding: 16px; font-size: 24px; font-weight: bold; }
+    .container { display: flex; height: calc(100vh - 56px); }
+    .sidebar { width: 20%; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+    .tabs { display: flex; border-bottom: 1px solid #ddd; }
+    .tab {
+      flex: 1; padding: 12px 0; text-align: center;
+      cursor: pointer; background: #fff; font-weight: bold;
+      border: none; border-bottom: 2px solid transparent;
+      transition: background 0.2s;
+    }
+    .tab:hover, .tab.previewed { background: #e6f7ff; }
+    .tab.active {
+      background: #bae7ff; color: #0050b3; border-bottom-color: #0050b3;
+    }
+    .folder-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+    .folder, .document { display: flex; align-items: center; padding: 6px 16px; cursor: pointer; }
+    .icon { margin-right: 8px; }
+    .folder:hover, .document:hover { background: #f5f5f5; }
+    .selected { background: #e6f7ff; border-left: 3px solid #1890ff; }
+    .sidebar .actions { display: flex; gap: 8px; padding: 12px 16px 24px 16px; border-top: 1px solid #eee; }
+    .sidebar .actions button {
+      flex: 1; padding: 8px; height: 36px; background: #4a90e2; color: #fff;
+      border: none; border-radius: 4px; font-size: 14px; line-height: 1.2; cursor: pointer;
+    }
+    .content { width: 50%; background: #fff; border-right: 1px solid #ddd; padding: 16px; display: flex; flex-direction: column; }
+    .content .section-title { font-weight: bold; margin-bottom: 8px; }
+    .content input.filename {
+      width: 100%; padding: 8px; font-size: 14px; margin-bottom: 12px;
+      border: 1px solid #ccc; border-radius: 4px; background: #f9f2f9;
+    }
+    .content .preview {
+      flex: 1; border: 1px solid #eee; padding: 12px; font-size: 100%; color: #333;
+      overflow-y: auto; border-radius: 4px; margin-bottom: 12px; line-height: 1.5;
+    }
+    .content .preview figure { text-align: center; margin-top: 16px; }
+    .content .preview img { max-width: 100%; height: auto; }
+    .content .preview figcaption { font-size: 12px; color: #777; margin-top: 4px; }
+    .content .meta {
+      border: 1px solid #eee; padding: 12px; font-size: 13px; color: #555;
+      border-radius: 4px; margin-bottom: 12px; line-height: 1.5;
+    }
+    .content .actions {
+      display: flex; justify-content: space-between; gap: 8px;
+      align-items: center; margin-top: auto; margin-bottom: 8px;
+    }
+    .content .actions button {
+      height: 36px; line-height: 1; border-radius: 4px;
+      outline: none; box-shadow: none;
+    }
+    .content .actions button:focus,
+    .content .actions button:focus-visible,
+    .content .actions button:active {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    .content .actions button::-moz-focus-inner { border: 0 !important; }
+    .content .actions button { -webkit-tap-highlight-color: transparent; }
+    .content .actions .main-btn {
+      flex: 1; background: #4a90e2; color: #fff;
+      border: none !important; outline: none !important; box-shadow: none !important;
+    }
+    .content .actions .sub-btn {
+      flex: 1; background: #f5f5f5; color: #333; border: 1px solid #ccc;
+    }
+    .search-panel { width: 30%; background: #fff; padding: 16px; overflow-y: auto; }
+    .search-panel .section-title { font-weight: bold; margin-bottom: 8px; }
+    .search-panel input.search {
+      width: 100%; padding: 8px; font-size: 14px;
+      border: 1px solid #ccc; border-radius: 4px; margin-bottom: 16px;
+    }
+    .result-card { border: 1px solid #eee; border-radius: 4px; padding: 12px; margin-bottom: 12px; }
+    .result-card.selected { border-color: #4a90e2; background: #e6f7ff; }
+    .result-card .title { font-weight: bold; margin-bottom: 4px; }
+    .result-card .info { font-size: 13px; color: #555; margin-bottom: 6px; }
+    .result-card .bar { height: 6px; background: #4a90e2; border-radius: 3px; }
+    .search-panel .explain {
+      border: 1px solid #eee; border-radius: 4px; padding: 12px;
+      font-size: 100%; color: #333; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">Ricoh document Discovery</div>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="tabs">
+        <button class="tab active" id="tab-my">My 문서함</button>
+        <button class="tab" id="tab-public">공용문서함</button>
+      </div>
+      <div class="folder-list" id="folder-list"></div>
+      <div class="actions">
+        <button>폴더 추가</button>
+        <button>문서 추가</button>
+      </div>
+    </aside>
+    <main class="content">
+      <div class="section-title">문서 내용</div>
+      <input class="filename" type="text" value="iPS_매뉴얼.PDF" readonly />
+      <div class="preview" id="preview">
+        이 문서는 RICOH Korea에서 제공하는 웹 기반 문서 관리 시스템으로, 스캔/팩스 문서를 웹과 모바일 브라우저를 통해 저장, 공유, 이메일 전송, 검색하는 기능을 포함하고 있습니다.
+        <figure>
+          <img src="iPS-menual-cover.png" alt="프로젝트 요구사항 표지">
+          <figcaption>iPS menual</figcaption>
+        </figure>
+      </div>
+      <div class="meta">
+        작성자: iPS 개발팀<br />최종 수정일: 2023-09-15<br />파일 크기: 254KB
+      </div>
+      <div class="actions">
+        <button class="main-btn" id="search-btn">문서함 내 연관문서 검색</button>
+        <button class="sub-btn" id="email-btn">이메일 연관문서 검색</button>
+        <button class="sub-btn" id="summary-btn">요약내용 보기</button>
+      </div>
+    </main>
+    <aside class="search-panel">
+      <div class="section-title">문서 검색</div>
+      <input class="search" type="text" placeholder="자연어 질의 입력..." />
+      <div class="section-title">연관 문서</div>
+      <div class="result-card selected">
+        <div class="title">iPS_화면_Design.pdf</div>
+        <div class="info">연관도: 95%<br/>공통 키워드: iPS_요구사항, iPS_화면디자인</div>
+        <div class="bar" style="width:95%;"></div>
+      </div>
+      <div class="result-card">
+        <div class="title">iPS_개발 아키텍처.pdf</div>
+        <div class="info">연관도: 92%<br/>공통 키워드: iPS_요구사항, iPS_기능</div>
+        <div class="bar" style="width:92%;"></div>
+      </div>
+      <div class="result-card">
+        <div class="title">iPS_개발 회의록.pdf</div>
+        <div class="info">연관도: 82%<br/>공통 키워드: iPS_요구사항, iPS_기능</div>
+        <div class="bar" style="width:82%;"></div>
+      </div>
+      <div class="result-card">
+        <div class="title">iPS_제안서.pdf</div>
+        <div class="info">연관도: 75%<br/>공통 키워드: iPS_요구사항, iPS_기능</div>
+        <div class="bar" style="width:75%;"></div>
+      </div>
+      <div class="result-card">
+        <div class="title">iPS_기획안.pdf</div>
+        <div class="info">연관도: 70%<br/>공통 키워드: iPS_요구사항, iPS_기능</div>
+        <div class="bar" style="width:70%;"></div>
+      </div>
+      <div class="section-title" style="margin-top:16px;">GPT 연관성 설명</div>
+      <div class="explain">
+        선택한 문서는 iPS 솔루션 사용자 매뉴얼이며 원하시면 관리자 매뉴얼 및 시스템 설치 매뉴얼을 제공할 수 있습니다.
+      </div>
+    </aside>
+  </div>
+  <script>
+    const tabMy = document.getElementById('tab-my');
+    const tabPub = document.getElementById('tab-public');
+    const listEl = document.getElementById('folder-list');
+    const previewEl = document.getElementById('preview');
+    const summaryBtn = document.getElementById('summary-btn');
+    const searchBtn = document.getElementById('search-btn');
+    const emailBtn = document.getElementById('email-btn');
+
+    const myHTML = `
+      <div class="folder"><span class="icon">📁</span>iPS_개발 프로젝트</div>
+      <div class="document"><span class="icon">📄</span>iPS_화면_Design.pdf</div>
+      <div class="document selected"><span class="icon">📄</span>iPS_매뉴얼.pdf</div>
+      <div class="document"><span class="icon">📄</span>iPS_개발 아키텍처.pdf</div>
+      <div class="document"><span class="icon">📄</span>iPS_제안서.pdf</div>
+      <div class="document"><span class="icon">📄</span>iPS_기획안.pdf</div>
+      <div class="folder"><span class="icon">📁</span>프로젝트 회의록</div>
+      <div class="folder"><span class="icon">📁</span>다운 받은 메일함</div>
+      <div class="folder"><span class="icon">📁</span>스캔 문서함</div>
+      <div class="folder"><span class="icon">📁</span>받은 팩스함</div>
+    `;
+
+    const publicHTML = `
+      <div class="folder"><span class="icon">📁</span>iPS개발팀</div>
+      <div class="document"><span class="icon">📄</span>iPS_개발회의록.docx</div>
+      <div class="folder"><span class="icon">📁</span>XPMS개발팀</div>
+      <div class="folder"><span class="icon">📁</span>다운 받은 메일함</div>
+      <div class="folder"><span class="icon">📁</span>스캔 문서함</div>
+      <div class="folder"><span class="icon">📁</span>받은 팩스함</div>
+    `;
+
+    tabMy.addEventListener('click', () => {
+      tabMy.classList.add('active');
+      tabPub.classList.remove('active');
+      listEl.innerHTML = myHTML;
+    });
+
+    tabPub.addEventListener('click', () => {
+      tabPub.classList.add('active');
+      tabMy.classList.remove('active');
+      listEl.innerHTML = publicHTML;
+    });
+
+    summaryBtn.addEventListener('click', () => {
+      summaryBtn.classList.replace('sub-btn', 'main-btn');
+      searchBtn.classList.replace('main-btn', 'sub-btn');
+      emailBtn.classList.replace('main-btn', 'sub-btn');
+      previewEl.innerHTML = `
+        <h4>요약 내용입니다.</h4>
+        <p>image Portal Service는 웹(PC)과 모바일 브라우저에서 복합기 이미지 파일에 접근할 수 있으며, 핵심기능으로 부서 공용문서함과 개인문서함 기능을 제공하고 이용자가 원하는 문서에 쉽고, 빠르게 접근할 수 있게 문서의 썸네일 정보와 다양한 검색 옵션을 제공하고 있습니다.</p>
+        <p>image portal service의 주요기능으로는 공용문서함과 개인문서함과 팩스문서함, 주소록관리 기능, 문서 전달기능이 있으며 부가 기능으로 문서함 생성, 이동, 서버처리 기능이 제공되고 있습니다.</p>
+        <p><strong>iPS 솔루션에 대한 추가 정보가 필요하시면 기능별로 정리된 자료를 제공할 수 있습니다.</strong></p>
+      `;
+    });
+
+    searchBtn.addEventListener('click', () => {
+      searchBtn.classList.replace('sub-btn', 'main-btn');
+      summaryBtn.classList.replace('main-btn', 'sub-btn');
+      emailBtn.classList.replace('main-btn', 'sub-btn');
+      previewEl.innerHTML = `
+        이 문서는 RICOH Korea에서 제공하는 웹 기반 문서 관리 시스템으로, 스캔/팩스 문서를 웹과 모바일 브라우저를 통해 저장, 공유, 이메일 전송, 검색하는 기능을 포함하고 있습니다.
+        <figure>
+          <img src="iPS-menual-cover.png" alt="프로젝트 요구사항 표지">
+          <figcaption>iPS menual</figcaption>
+        </figure>
+      `;
+    });
+
+    emailBtn.addEventListener('click', () => {
+  emailBtn.classList.replace('sub-btn', 'main-btn');
+  searchBtn.classList.replace('main-btn', 'sub-btn');
+  summaryBtn.classList.replace('main-btn', 'sub-btn');
+  previewEl.innerHTML = `
+  <h4 style="margin-top: 10px; margin-bottom: 16px; font-size: 18px; color: #333;">📨 받은 메일함</h4>
+    <div style="border: 1px solid #ccc; border-radius: 6px; overflow: hidden;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead style="background: #f0f2f5; text-align: center;">
+          <tr>
+            <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">보낸 사람</th>
+            <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">제목</th>
+            <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">일자</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>에스크닥</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">iPS_매뉴얼 보내드립니다</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">2025.05.15.10.10.10</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>에스크닥</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">다운 받은 메일함 보완 내용 보내드립니다</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">2025.05.17.10.20.27</td>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>에스크닥</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">스캔 문서함 이미지 수정본 보내드립니다</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">2025.05.18.15.10.10</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>  
+  <h4 style="margin-top: 20px; margin-bottom: 16px; font-size: 18px; color: #333;">📨 보낸 메일함</h4>
+    <div style="border: 1px solid #ccc; border-radius: 6px; overflow: hidden;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead style="background: #f0f2f5; text-align: center;">
+          <tr>
+            <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">보낸 사람</th>
+            <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">제목</th>
+            <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">일자</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>리코코리아</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">다운 받은 메일함 내용 보완 부탁드립니다</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">2025.05.16.17.10.10</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>리코코리아</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">스캔 문서함 이미지 교체 부탁드립니다</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">2025.05.17.17.50.20</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <p style="font-size: 12px; color: #888; margin-top: 8px;">※ 제목을 클릭하시면 메일 내용을 보실 수 있습니다</p>
+  `;
+});
+
+// ✅ 첫 화면에 My 문서함 자동 표시
+listEl.innerHTML = myHTML;
+
+  </script>
+</body>
+</html>
