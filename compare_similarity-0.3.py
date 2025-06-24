@@ -122,10 +122,29 @@ st.title("📄 document Analyzer")
 sidebar, main = st.columns([1, 4])
 
 with sidebar:
-    st.header("Index Folder")
-    src_folder = st.text_input("소스 폴더", value="source_documents")
-    db_folder = st.text_input("FAISS 인덱스 폴더", value="db")
-    if st.button("인덱스 재빌드"):
+   # st.header("Index Folder")
+   # src_folder = st.text_input("소스 폴더", value="source_documents")
+   # db_folder = st.text_input("FAISS 인덱스 폴더", value="db")
+   # if st.button("인덱스 재빌드"):
+
+   # ——— HTML 레이블로 교체해서 크기·볼드 강제 적용 ———
+   st.markdown(
+       "<div style='font-size:4rem; font-weight:bold;'>Index Folder</div>",
+       unsafe_allow_html=True
+   )
+   st.markdown(
+       "<div style='font-size:3rem; font-weight:bold;'>Source Folder</div>",
+       unsafe_allow_html=True
+   )
+   src_folder = st.text_input("", value="source_documents")
+   st.markdown(
+       "<div style='font-size:3rem; font-weight:bold;'>FAISS Index Folder</div>",
+       unsafe_allow_html=True
+   )
++    db_folder = st.text_input("", value="db")
++    # 버튼도 똑같이 HTML 레이블 위에 찍어줍니다.
++    if st.button("  <span style='font-size:3rem; font-weight:bold;'>인덱스 재빌드</span>  ", unsafe_allow_html=True):
+
         try:
             rebuild_db(src_folder, db_folder)
             st.success(f"인덱스 재빌드 완료: {src_folder} → {db_folder}")
